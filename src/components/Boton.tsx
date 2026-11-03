@@ -1,8 +1,8 @@
-import React from 'react';
-import { TouchableOpacity, Text, StyleSheet, Dimensions } from 'react-native';
+import { useState } from 'react';
+import { Dimensions, StyleSheet, Text, TouchableOpacity } from 'react-native';
 
 const { width } = Dimensions.get('window');
-const buttonSize = (width - 40 - 36) / 4; // 4 columnas con gaps limpios
+const buttonSize = (width - 40 - 36) / 4;
 
 interface Props {
   label: string;
@@ -19,16 +19,28 @@ export function Boton({
   onPress,
   isDouble = false,
 }: Props) {
+  const [isPressed, setIsPressed] = useState(false);
+
+  const handlePressIn = () => setIsPressed(true);
+  const handlePressOut = () => setIsPressed(false);
+
   return (
     <TouchableOpacity
       onPress={onPress}
+      onPressIn={handlePressIn}
+      onPressOut={handlePressOut}
       style={[
         styles.button,
-        { backgroundColor: color, width: isDouble ? buttonSize * 2 + 12 : buttonSize },
+        {
+          backgroundColor: isPressed ? '#38BDF8' : color, // Cambio de color único al tacto
+          width: isDouble ? buttonSize * 2 + 12 : buttonSize,
+        },
       ]}
-      activeOpacity={0.7}
+      activeOpacity={0.8}
     >
-      <Text style={[styles.text, { color: textColor }]}>{label}</Text>
+      <Text style={[styles.text, { color: isPressed ? '#030712' : textColor }]}>
+        {label}
+      </Text>
     </TouchableOpacity>
   );
 }

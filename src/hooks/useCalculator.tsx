@@ -1,3 +1,4 @@
+import * as Haptics from 'expo-haptics';
 import { useState } from 'react';
 
 export function useCalculator() {
@@ -5,11 +6,13 @@ export function useCalculator() {
   const [prevNumber, setPrevNumber] = useState('');
 
   const limpiar = () => {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
     setFormula('0');
     setPrevNumber('');
   };
 
   const eliminar = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     if (formula.length === 1 || (formula.length === 2 && formula.startsWith('-'))) {
       setFormula('0');
     } else {
@@ -18,6 +21,7 @@ export function useCalculator() {
   };
 
   const escribir = (text: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     if (formula === '0' && text !== '.') {
       setFormula(text);
     } else {
@@ -25,14 +29,9 @@ export function useCalculator() {
     }
   };
 
-  const prepararOperacion = (op: string) => {
-    setPrevNumber(formula);
-    setFormula('0');
-  };
-
   const calcular = () => {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     try {
-      // Reemplazamos símbolos visuales por operadores de evaluación JS
       const expresionFinal = formula
         .replace(/×/g, '*')
         .replace(/÷/g, '/')
@@ -41,14 +40,15 @@ export function useCalculator() {
         .replace(/\^/g, '**');
 
       const resultado = eval(expresionFinal);
+      setPrevNumber(formula + ' =');
       setFormula(String(resultado));
-      setPrevNumber('');
     } catch (error) {
       setFormula('Error');
     }
   };
 
   const manejarOperacionEspecial = (tipo: 'sqrt' | 'sqr' | 'power') => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     try {
       const actual = parseFloat(formula);
       if (isNaN(actual)) return;
@@ -58,12 +58,14 @@ export function useCalculator() {
           setFormula('Error');
           return;
         }
+        setPrevNumber(`√(${formula})`);
         setFormula(String(Math.sqrt(actual)));
       } else if (tipo === 'sqr') {
+        setPrevNumber(`(${formula})²`);
         setFormula(String(actual ** 2));
       } else if (tipo === 'power') {
-        setPrevNumber(formula);
-        setFormula(''); // Espera el exponente
+        setPrevNumber(formula + ' ^');
+        setFormula(formula + '^');
       }
     } catch {
       setFormula('Error');
@@ -76,7 +78,6 @@ export function useCalculator() {
     limpiar,
     eliminar,
     escribir,
-    prepararOperacion,
     calcular,
     manejarOperacionEspecial,
   };
