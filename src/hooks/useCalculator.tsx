@@ -88,7 +88,6 @@ export const useCalculator = () => {
   const handleOperator = (nextOperator: string) => {
     triggerHaptic();
 
-    // Reemplaza operadores múltiples seguidos (ej: "++++" -> "+")
     if (waitingForOperand && expressionChain) {
       setExpressionChain(prev => {
         const trimmed = prev.trim();
@@ -106,31 +105,77 @@ export const useCalculator = () => {
     setFormula(newChain);
   };
 
+  const handleUnaryOp = (opType: string) => {
+    triggerHaptic();
+    const current = displayValue;
+    
+    let formattedSnippet = '';
+    if (['sin', 'cos', 'tan', 'asin', 'acos', 'atan', 'ln', 'log10', 'exp', 'sqrt', 'cbrt'].includes(opType)) {
+      formattedSnippet = `${opType}(${current})`;
+    } else if (opType === 'square') {
+      formattedSnippet = `(${current})²`;
+    } else if (opType === 'cube') {
+      formattedSnippet = `(${current})³`;
+    } else if (opType === 'percent') {
+      formattedSnippet = `${current}/100`;
+    } else {
+      formattedSnippet = `${opType}(${current})`;
+    }
+
+    const newChain = expressionChain ? `${expressionChain} ${formattedSnippet}` : formattedSnippet;
+    setExpressionChain(newChain);
+    setFormula(newChain);
+    setWaitingForOperand(true);
+  };
+
   const handleEquals = () => {
     triggerHaptic();
 
-    if (!expressionChain) return;
+    // Si no hay cadena pero hay un display value, armamos la expresión actual
+    const fullExpression = expressionChain ? `${expressionChain} ${waitingForOperand ? '' : displayValue}` : displayValue;
+    
+    if (!fullExpression.trim()) return;
 
     try {
-      let fullExpression = '';
-      
-      // Si dejamos un operador colgando al final (ej: "5 + 2 +"), evaluamos sin duplicar el último número
-      if (waitingForOperand) {
-        const trimmed = expressionChain.trim();
-        fullExpression = trimmed.substring(0, trimmed.lastIndexOf(' '));
-      } else {
-        fullExpression = `${expressionChain} ${displayValue}`;
+      let cleanedExpr = fullExpression.trim();
+      // Si termina en operador colgante, lo removemos
+      if (['+', '-', '×', '÷'].some(op => cleanedExpr.endsWith(op))) {
+        cleanedExpr = cleanedExpr.substring(0, cleanedExpr.lastIndexOf(' '));
       }
-      
-      const sanitizedExpression = fullExpression
-        .replace(/×/g, '*')
-        .replace(/÷/g, '/');
 
-      let res = Function(`'use strict'; return (${sanitizedExpression})`)();
+      // Convertimos los operadores visuales y funciones matemáticas a formato JS ejecutable
+      let jsExpression = cleanedExpr
+        .replace(/×/g, '*')
+        .replace(/÷/g, '/')
+        .replace(/²/g, '**2')
+        .replace(/³/g, '**3');
+
+      // Reemplazo seguro de funciones trigonométricas y científicas
+      // Si el modo es DEG (Grados), convertimos el ángulo a radianes dentro de la función (grados * PI / 180)
+      const toRadFactor = isRad ? '1' : `(Math.PI / 180)`;
+
+      jsExpression = jsExpression
+        .replace(/sin\(([^)]+)\)/g, `Math.sin(($1) * ${toRadFactor})`)
+        .replace(/cos\(([^)]+)\)/g, `Math.cos(($1) * ${toRadFactor})`)
+        .replace(/tan\(([^)]+)\)/g, `Math.tan(($1) * ${toRadFactor})`)
+        .replace(/sqrt\(([^)]+)\)/g, `Math.sqrt($1)`)
+        .replace(/cbrt\(([^)]+)\)/g, `Math.cbrt($1)`)
+        .replace(/ln\(([^)]+)\)/g, `Math.log($1)`)
+        .replace(/log10\(([^)]+)\)/g, `Math.log10($1)`)
+        .replace(/exp\(([^)]+)\)/g, `Math.exp($1)`);
+
+      // Trigonométricas inversas (asin, acos, atan)
+      const toDegFactor = isRad ? '1' : `(180 / Math.PI)`;
+      jsExpression = jsExpression
+        .replace(/asin\(([^)]+)\)/g, `(Math.asin($1) * ${toDegFactor})`)
+        .replace(/acos\(([^)]+)\)/g, `(Math.acos($1) * ${toDegFactor})`)
+        .replace(/atan\(([^)]+)\)/g, `(Math.atan($1) * ${toDegFactor})`);
+
+      let res = Function(`'use strict'; return (${jsExpression})`)();
 
       const formattedResult = isNaN(res) || !isFinite(res) ? 'Error' : (Number.isInteger(res) ? String(res) : String(Number(res.toFixed(8))));
       
-      setFormula(fullExpression);
+      setFormula(cleanedExpr);
       setDisplayValue(formattedResult);
       
       setExpressionChain('');
@@ -138,52 +183,6 @@ export const useCalculator = () => {
     } catch (error) {
       setDisplayValue('Error');
       setExpressionChain('');
-    }
-  };
-
-  const handleUnaryOp = (opType: string) => {
-    triggerHaptic();
-    const current = parseFloat(displayValue);
-    let result = 0;
-    const angleConv = isRad ? 1 : Math.PI / 180;
-
-    switch (opType) {
-      case 'sqrt': result = Math.sqrt(current); break;
-      case 'cbrt': result = Math.cbrt(current); break;
-      case 'square': result = Math.pow(current, 2); break;
-      case 'cube': result = Math.pow(current, 3); break;
-      case 'reciprocal': result = current === 0 ? NaN : 1 / current; break;
-      case 'sin': result = Math.sin(current * angleConv); break;
-      case 'cos': result = Math.cos(current * angleConv); break;
-      case 'tan': result = Math.tan(current * angleConv); break;
-      case 'asin': result = isRad ? Math.asin(current) : Math.asin(current) * (180 / Math.PI); break;
-      case 'acos': result = isRad ? Math.acos(current) : Math.acos(current) * (180 / Math.PI); break;
-      case 'atan': result = isRad ? Math.atan(current) : Math.atan(current) * (180 / Math.PI); break;
-      case 'ln': result = Math.log(current); break;
-      case 'log10': result = Math.log10(current); break;
-      case 'exp': result = Math.exp(current); break;
-      case 'tenPow': result = Math.pow(10, current); break;
-      case 'percent': result = current / 100; break;
-      case 'factorial':
-        if (current < 0 || !Number.isInteger(current)) {
-          setDisplayValue('Error');
-          return;
-        }
-        let fact = 1;
-        for (let i = 2; i <= current; i++) fact *= i;
-        result = fact;
-        break;
-      case 'toggleSign': result = current * -1; break;
-      default: return;
-    }
-
-    if (isNaN(result) || !isFinite(result)) {
-      setDisplayValue('Error');
-    } else {
-      const formatted = Number.isInteger(result) ? String(result) : String(Number(result.toFixed(8)));
-      setDisplayValue(formatted);
-      setFormula(`${opType}(${current})`);
-      setWaitingForOperand(true);
     }
   };
 
