@@ -26,11 +26,11 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
   mainText: {
-    fontSize: 60,
-    fontWeight: '300',
+    fontSize: 42,
+    fontWeight: 'bold',
   },
   subText: {
-    fontSize: 26,
-    color: '#8DA9C4',
+    fontSize: 16,
+    color: '#94A3B8',
   },
 });

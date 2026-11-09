@@ -22,15 +22,11 @@ export function Display({ formula, prevNumber }: Props) {
 
 const styles = StyleSheet.create({
   container: {
-    paddingVertical: 24,
-    paddingHorizontal: 20,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
     alignItems: 'flex-end',
     justifyContent: 'flex-end',
-    minHeight: 140,
-    backgroundColor: '#070D1F',
-    borderRadius: 24,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: '#1E293B',
+    minHeight: 110,
+    backgroundColor: '#0B132B',
   },
 });

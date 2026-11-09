@@ -1,5 +1,5 @@
-import * as Haptics from 'expo-haptics';
 import { useState } from 'react';
+import * as Haptics from 'expo-haptics';
 
 export const useCalculator = () => {
   const [displayValue, setDisplayValue] = useState('0');
@@ -88,10 +88,13 @@ export const useCalculator = () => {
   const handleOperator = (nextOperator: string) => {
     triggerHaptic();
 
+    // Si es potencia ('power'), lo manejamos como operador o símbolo
+    const opSymbol = nextOperator === 'power' ? '^' : nextOperator;
+
     if (waitingForOperand && expressionChain) {
       setExpressionChain(prev => {
         const trimmed = prev.trim();
-        const updated = trimmed.substring(0, trimmed.length - 1) + nextOperator;
+        const updated = trimmed.substring(0, trimmed.length - 1) + opSymbol;
         setFormula(updated);
         return updated;
       });
@@ -100,7 +103,7 @@ export const useCalculator = () => {
 
     setWaitingForOperand(true);
 
-    const newChain = expressionChain ? `${expressionChain} ${displayValue} ${nextOperator}` : `${displayValue} ${nextOperator}`;
+    const newChain = expressionChain ? `${expressionChain} ${displayValue} ${opSymbol}` : `${displayValue} ${opSymbol}`;
     setExpressionChain(newChain);
     setFormula(newChain);
   };
@@ -118,6 +121,12 @@ export const useCalculator = () => {
       formattedSnippet = `(${current})³`;
     } else if (opType === 'percent') {
       formattedSnippet = `${current}/100`;
+    } else if (opType === 'toggleSign') {
+      formattedSnippet = `(-${current})`;
+    } else if (opType === 'reciprocal') {
+      formattedSnippet = `(1/${current})`;
+    } else if (opType === 'factorial') {
+      formattedSnippet = `factorial(${current})`;
     } else {
       formattedSnippet = `${opType}(${current})`;
     }
@@ -131,27 +140,23 @@ export const useCalculator = () => {
   const handleEquals = () => {
     triggerHaptic();
 
-    // Si no hay cadena pero hay un display value, armamos la expresión actual
     const fullExpression = expressionChain ? `${expressionChain} ${waitingForOperand ? '' : displayValue}` : displayValue;
     
     if (!fullExpression.trim()) return;
 
     try {
       let cleanedExpr = fullExpression.trim();
-      // Si termina en operador colgante, lo removemos
-      if (['+', '-', '×', '÷'].some(op => cleanedExpr.endsWith(op))) {
+      if (['+', '-', '×', '÷', '^'].some(op => cleanedExpr.endsWith(op))) {
         cleanedExpr = cleanedExpr.substring(0, cleanedExpr.lastIndexOf(' '));
       }
 
-      // Convertimos los operadores visuales y funciones matemáticas a formato JS ejecutable
       let jsExpression = cleanedExpr
         .replace(/×/g, '*')
         .replace(/÷/g, '/')
+        .replace(/\^/g, '**')
         .replace(/²/g, '**2')
         .replace(/³/g, '**3');
 
-      // Reemplazo seguro de funciones trigonométricas y científicas
-      // Si el modo es DEG (Grados), convertimos el ángulo a radianes dentro de la función (grados * PI / 180)
       const toRadFactor = isRad ? '1' : `(Math.PI / 180)`;
 
       jsExpression = jsExpression
@@ -164,12 +169,20 @@ export const useCalculator = () => {
         .replace(/log10\(([^)]+)\)/g, `Math.log10($1)`)
         .replace(/exp\(([^)]+)\)/g, `Math.exp($1)`);
 
-      // Trigonométricas inversas (asin, acos, atan)
       const toDegFactor = isRad ? '1' : `(180 / Math.PI)`;
       jsExpression = jsExpression
         .replace(/asin\(([^)]+)\)/g, `(Math.asin($1) * ${toDegFactor})`)
         .replace(/acos\(([^)]+)\)/g, `(Math.acos($1) * ${toDegFactor})`)
         .replace(/atan\(([^)]+)\)/g, `(Math.atan($1) * ${toDegFactor})`);
+
+      // Función auxiliar para factoriales dentro de la evaluación
+      const factorial = (n: number): number => {
+        if (n < 0) return NaN;
+        if (n === 0 || n === 1) return 1;
+        let acc = 1;
+        for (let i = 2; i <= n; i++) acc *= i;
+        return acc;
+      };
 
       let res = Function(`'use strict'; return (${jsExpression})`)();
 
